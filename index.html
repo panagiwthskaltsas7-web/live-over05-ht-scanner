@@ -3,65 +3,39 @@
 <html lang="el">
 <head>
   <meta charset="utf-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101827">
-
-  <meta
-    name="apple-mobile-web-app-capable"
-    content="yes"
-  >
-
-  <meta
-    name="apple-mobile-web-app-status-bar-style"
-    content="black-translucent"
-  >
-
-  <meta
-    name="apple-mobile-web-app-title"
-    content="HT Scanner"
-  >
-
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="HT Scanner">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
-
-  <link rel="stylesheet" href="styles.css?v=3">
-
+  <link rel="stylesheet" href="styles.css?v=4">
   <title>Live Over 0.5 HT Scanner</title>
 </head>
 
 <body>
-
   <header class="top">
     <div class="brand">
       <span class="pulse"></span>
-
       <div>
         <b>LIVE HT SCANNER</b>
         <small>OVER 0.5 · FIRST HALF</small>
       </div>
     </div>
-
     <span id="mode" class="pill">STOIXIMAN</span>
   </header>
 
   <main>
-
     <section class="summary">
       <div>
         <small>Αγώνες σε παρακολούθηση</small>
         <strong id="count">0</strong>
       </div>
-
       <div>
         <small>Καταγεγραμμένα σήματα</small>
         <strong id="signals">0</strong>
       </div>
-
       <div>
         <small>Ώρα δεδομένων παρόχου</small>
         <strong id="updated">—</strong>
@@ -71,46 +45,44 @@
     <section class="toolbar">
       <div>
         <h1>Live αγώνες</h1>
-
-        <p>
-          Παρακολούθηση αποδόσεων
-          Over 0.5 πρώτου ημιχρόνου
-        </p>
+        <p>Παρακολούθηση αποδόσεων Over 0.5 πρώτου ημιχρόνου</p>
       </div>
+      <button id="notifyBtn" class="secondary">Ειδοποιήσεις</button>
+    </section>
 
-      <button id="notifyBtn" class="secondary">
-        Ειδοποιήσεις
+    <section class="settings">
+      <button
+        id="refreshBtn"
+        class="secondary"
+        type="button"
+        style="width:100%;padding:14px;font-weight:bold"
+      >
+        ↻ Ανανέωση αποδόσεων
       </button>
+
+      <p id="refreshStatus" class="muted" aria-live="polite">
+        Αναμονή φόρτωσης δεδομένων...
+      </p>
     </section>
 
     <section id="notice" class="notice">
       <b>Σύνδεση με Stoiximan</b>
-
       <p>
-        Οι αποδόσεις προέρχονται από το
-        JoJ API για τη Stoiximan.
-        Τα δεδομένα ενδέχεται να είναι
-        αποθηκευμένα προσωρινά και
-        δεν ανανεώνονται συνεχώς.
+        Οι αποδόσεις προέρχονται από το JoJ API.
+        Η ανανέωση ελέγχει για διαθέσιμα δεδομένα,
+        αλλά δεν παρακάμπτει την προσωρινή μνήμη του Cloudflare.
       </p>
     </section>
 
-    <section
-      id="matches"
-      class="matches"
-    ></section>
+    <section id="matches" class="matches"></section>
 
     <section class="settings">
       <h2>Ρυθμίσεις ανίχνευσης</h2>
-
       <div class="setting">
         <label for="threshold">
           Ελάχιστη πτώση από προηγούμενη καταγραφή
         </label>
-
-        <b>
-          <span id="thresholdValue">10</span>%
-        </b>
+        <b><span id="thresholdValue">10</span>%</b>
       </div>
 
       <input
@@ -123,34 +95,26 @@
       >
 
       <p class="muted">
-        Η ανίχνευση συγκρίνει την απόδοση
-        Stoiximan με προηγούμενη αποθηκευμένη
-        τιμή της ίδιας επιλογής, όταν
-        διατίθεται νέο στιγμιότυπο δεδομένων.
-        Δεν υπάρχει ακόμη επιβεβαίωση από
-        δεύτερη στοιχηματική ή εγγυημένη
-        ανίχνευση μέσα σε 3 λεπτά.
+        Η ανίχνευση συγκρίνει διαδοχικά διαθέσιμα
+        στιγμιότυπα της Stoiximan. Δεν υπάρχει
+        εγγυημένη ενημέρωση ανά λεπτό.
       </p>
     </section>
 
     <section class="history">
       <h2>Πρόσφατα σήματα</h2>
-
       <div id="historyList" class="empty">
         Δεν υπάρχουν ακόμη σήματα.
       </div>
     </section>
-
   </main>
 
   <footer>
     Το εργαλείο είναι ενημερωτικό.
-    Δεν προβλέπει με βεβαιότητα γκολ
-    και δεν τοποθετεί στοιχήματα.
-    Οι αποδόσεις μπορεί να έχουν αλλάξει.
+    Δεν προβλέπει με βεβαιότητα γκολ και
+    δεν τοποθετεί στοιχήματα.
   </footer>
 
-  <script src="app.js?v=3"></script>
-
+  <script src="app.js?v=4"></script>
 </body>
 </html>
