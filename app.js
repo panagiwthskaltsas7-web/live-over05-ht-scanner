@@ -2,33 +2,14 @@
 const $ = id => document.getElementById(id);
 
 const API_URL =
-  "https://live-over05-ht-scanner.panagiwthskaltsas7.workers.dev/api/scanner";
-
-const HISTORY_KEY = "over05ht-real-history-v1";
-const SIGNALS_KEY = "over05ht-real-signals-v1";
+  "https://football-odds-scanner.panagiwthskaltsas7.workers.dev";
 
 let threshold = 10;
 let games = [];
 let signals = [];
-let previous = {};
 let loading = false;
 let lastUpdated = "—";
 let lastSnapshot = null;
-let lastFetched = null;
-let isCached = false;
-
-try {
-  previous = JSON.parse(
-    localStorage.getItem(HISTORY_KEY) || "{}"
-  );
-
-  signals = JSON.parse(
-    localStorage.getItem(SIGNALS_KEY) || "[]"
-  );
-} catch {
-  previous = {};
-  signals = [];
-}
 
 function escapeHTML(value) {
   return String(value ?? "").replace(
@@ -44,17 +25,17 @@ function escapeHTML(value) {
 }
 
 function formatPrice(value) {
-  return Number(value).toFixed(2);
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? number.toFixed(2)
+    : "—";
 }
 
 function formatTime(value) {
   if (!value) return "—";
 
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
+  if (Number.isNaN(date.getTime())) return "—";
 
   return date.toLocaleTimeString("el-GR", {
     hour: "2-digit",
@@ -67,7 +48,6 @@ function formatAge(value) {
   if (!value) return "άγνωστη ηλικία";
 
   const timestamp = new Date(value).getTime();
-
   if (!Number.isFinite(timestamp)) {
     return "άγνωστη ηλικία";
   }
@@ -77,75 +57,30 @@ function formatAge(value) {
     Math.floor((Date.now() - timestamp) / 60000)
   );
 
-  if (minutes < 1) {
-    return "λιγότερο από 1 λεπτό";
-  }
+  if (minutes < 1) return "λιγότερο από 1 λεπτό";
+  if (minutes < 60) return `${minutes} λεπτά`;
 
-  if (minutes < 60) {
-    return `${minutes} λεπτά`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remaining = minutes % 60;
-
-  return `${hours} ώρ. ${remaining} λεπ.`;
-}
-
-function saveHistory() {
-  try {
-    localStorage.setItem(
-      HISTORY_KEY,
-      JSON.stringify(previous)
-    );
-
-    localStorage.setItem(
-      SIGNALS_KEY,
-      JSON.stringify(signals.slice(0, 50))
-    );
-  } catch (error) {
-    console.warn("Storage unavailable", error);
-  }
-}
-
-function getStatus(game) {
-  // Δεν εμφανίζουμε σήμα από παλιά
-  // ή επαναλαμβανόμενα στιγμιότυπα.
-  if (!game.newSnapshot) return "normal";
-
-  if (game.drop >= threshold) return "high";
-
-  if (game.drop >= threshold * 0.55) {
-    return "watch";
-  }
-
-  return "normal";
+  return `${Math.floor(minutes / 60)} ώρ. ${minutes % 60} λεπ.`;
 }
 
 function updateRefreshStatus(message) {
   const element = $("refreshStatus");
-
-  if (element) {
-    element.textContent = message;
-  }
+  if (element) element.textContent = message;
 }
 
-function notify(game) {
-  if (
-    "Notification" in window &&
-    Notification.permission === "granted"
-  ) {
-    try {
-      new Notification("Over 0.5 HT – Πτώση απόδοσης", {
-        body:
-          `${game.name}: ` +
-          `${formatPrice(game.baseline)} → ` +
-          `${formatPrice(game.price)} ` +
-          `(-${game.drop.toFixed(1)}%)`
-      });
-    } catch (error) {
-      console.warn("Notification unavailable", error);
-    }
+function getStatus(game) {
+  if (game.drop >= threshold && game.hasComparison) {
+    return "high";
   }
+
+  if (
+    game.drop >= threshold * 0.55 &&
+    game.hasComparison
+  ) {
+    return "watch";
+  }
+
+  return "normal";
 }
 
 function render() {
@@ -160,7 +95,7 @@ function render() {
           Δεν υπάρχουν διαθέσιμοι αγώνες.
         </div>
         <div class="minute">
-          Πάτησε Ανανέωση για νέο έλεγχο.
+          Αναμονή για τον επόμενο αυτόματο έλεγχο.
         </div>
       </article>
     `;
@@ -175,22 +110,17 @@ function render() {
             ? "Υπό παρακολούθηση"
             : "Χωρίς νέο σήμα";
 
-      const comparison =
-        game.baseline === null
-          ? `Τρέχουσα απόδοση: ${formatPrice(game.price)}`
-          : `${formatPrice(game.baseline)} → ` +
-            `${formatPrice(game.price)}`;
+      const comparison = game.hasComparison
+        ? `${formatPrice(game.baseline)} → ${formatPrice(game.price)}`
+        : `Τρέχουσα απόδοση: ${formatPrice(game.price)}`;
 
-      const movement =
-        game.baseline === null
-          ? "Πρώτη καταγραφή"
-          : !game.newSnapshot
-            ? "Δεν υπάρχει νέο στιγμιότυπο για σύγκριση"
-            : game.drop > 0
-              ? `Πτώση ${game.drop.toFixed(1)}%`
-              : game.drop < 0
-                ? `Άνοδος ${Math.abs(game.drop).toFixed(1)}%`
-                : "Χωρίς μεταβολή";
+      const movement = game.hasComparison
+        ? game.drop > 0
+          ? `Πτώση ${game.drop.toFixed(1)}%`
+          : game.drop < 0
+            ? `Άνοδος ${Math.abs(game.drop).toFixed(1)}%`
+            : "Χωρίς μεταβολή"
+        : "Δεν καταγράφηκε νέα πτώση στον τελευταίο έλεγχο";
 
       return `
         <article class="match">
@@ -199,9 +129,9 @@ function render() {
               <div class="matchname">
                 ${escapeHTML(game.name)}
               </div>
-
               <div class="minute">
                 ${escapeHTML(game.league)}
+                · ${escapeHTML(game.minute)}
                 · Over 0.5 HT
               </div>
             </div>
@@ -221,7 +151,7 @@ function render() {
 
           <div class="sourcegrid">
             <div class="source">
-              <small>Stoiximan</small>
+              <small>API-Football</small>
               <b>${formatPrice(game.price)}</b>
             </div>
 
@@ -233,10 +163,7 @@ function render() {
 
           <div class="bar">
             <span style="width:${
-              Math.min(
-                Math.max(game.drop, 0) * 3,
-                100
-              )
+              Math.min(Math.max(game.drop, 0) * 3, 100)
             }%"></span>
           </div>
         </article>
@@ -251,7 +178,7 @@ function render() {
             ${escapeHTML(signal.name)}
             · ${escapeHTML(signal.time)}
           </span>
-          <b>-${Number(signal.drop).toFixed(1)}%</b>
+          <b>-${signal.drop.toFixed(1)}%</b>
         </div>
       `).join("")
     : "Δεν υπάρχουν ακόμη σήματα.";
@@ -270,141 +197,112 @@ async function loadLiveGames() {
   }
 
   updateRefreshStatus(
-    "Έλεγχος διαθέσιμων δεδομένων Stoiximan..."
+    "Ανάκτηση αποθηκευμένων δεδομένων API-Football..."
   );
 
   try {
-    const response = await fetch(
-      API_URL + "?t=" + Date.now(),
-      { cache: "no-store" }
-    );
+    const [scannerResponse, signalsResponse] =
+      await Promise.all([
+        fetch(
+          API_URL + "/api/scanner?t=" + Date.now(),
+          { cache: "no-store" }
+        ),
+        fetch(
+          API_URL + "/api/signals?t=" + Date.now(),
+          { cache: "no-store" }
+        )
+      ]);
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    if (!scannerResponse.ok || !signalsResponse.ok) {
+      throw new Error("Αποτυχία σύνδεσης με τον Worker");
     }
 
-    const data = await response.json();
+    const data = await scannerResponse.json();
+    const signalsData = await signalsResponse.json();
 
     if (!Array.isArray(data.matches)) {
-      throw new Error("Invalid API response");
+      throw new Error("Μη έγκυρα δεδομένα scanner");
     }
 
-    const snapshot =
-      data.updatedAt || data.fetchedAt || null;
+    lastSnapshot = data.fetchedAt || null;
+    lastUpdated = formatTime(lastSnapshot);
 
-    const fetched = data.fetchedAt || null;
+    const rawSignals = Array.isArray(signalsData.signals)
+      ? signalsData.signals
+      : [];
 
-    lastSnapshot = snapshot;
-    lastFetched = fetched;
-    isCached = Boolean(data.cached);
-    lastUpdated = formatTime(snapshot);
+    const latestSignals = Array.isArray(data.signals)
+      ? data.signals
+      : [];
 
-    const nextGames = [];
+    const latestSignalMap = new Map(
+      latestSignals.map(signal => [
+        String(signal.fixtureId),
+        signal
+      ])
+    );
 
-    for (const match of data.matches) {
-      const price = Number(match.price);
+    games = data.matches.map(match => {
+      const id = String(match.fixtureId);
+      const signal = latestSignalMap.get(id);
 
-      if (!Number.isFinite(price) || price <= 1) {
-        continue;
-      }
+      const baseline = signal
+        ? Number(signal.previousOdd)
+        : null;
 
-      const id =
-        String(match.eventId) +
-        ":" +
-        String(match.selectionId);
+      const price = Number(match.odd);
 
-      const saved = previous[id];
+      const drop = signal
+        ? Number(signal.dropPercent)
+        : 0;
 
-      const name =
-        `${match.home} – ${match.away}`;
-
-      let baseline = null;
-      let drop = 0;
-      let newSnapshot = false;
-
-      if (
-        saved &&
-        Number.isFinite(Number(saved.price))
-      ) {
-        baseline = Number(saved.price);
-
-        newSnapshot = Boolean(
-          snapshot &&
-          saved.updatedAt &&
-          snapshot !== saved.updatedAt
-        );
-
-        if (baseline > 0) {
-          drop = (1 - price / baseline) * 100;
-        }
-      }
-
-      const game = {
+      return {
         id,
-        name,
-        league: match.league || "Ποδόσφαιρο",
+        name:
+          `Ομάδα ${match.homeTeamId ?? "?"} – ` +
+          `Ομάδα ${match.awayTeamId ?? "?"}`,
+        league: `Λίγκα ${match.leagueId ?? "?"}`,
+        minute: match.minute == null
+          ? "Λεπτό άγνωστο"
+          : `${match.minute}'`,
         price,
         baseline,
         drop,
-        newSnapshot
+        hasComparison: Boolean(signal)
       };
+    }).filter(game =>
+      Number.isFinite(game.price) && game.price > 1
+    );
 
-      nextGames.push(game);
+    signals = rawSignals
+      .map(signal => ({
+        id: String(signal.fixtureId),
+        name:
+          `Ομάδα ${signal.homeTeamId ?? "?"} – ` +
+          `Ομάδα ${signal.awayTeamId ?? "?"}`,
+        drop: Number(signal.dropPercent),
+        time: formatTime(signal.detectedAt)
+      }))
+      .filter(signal => Number.isFinite(signal.drop))
+      .filter(signal => signal.drop >= threshold);
 
-      if (
-        newSnapshot &&
-        drop >= threshold &&
-        !signals.some(signal =>
-          signal.id === id &&
-          signal.updatedAt === snapshot
-        )
-      ) {
-        signals.unshift({
-          id,
-          name,
-          drop,
-          baseline,
-          price,
-          updatedAt: snapshot,
-          time: formatTime(snapshot)
-        });
-
-        notify(game);
-      }
-
-      if (!saved || newSnapshot) {
-        previous[id] = {
-          price,
-          updatedAt: snapshot
-        };
-      }
-    }
-
-    games = nextGames;
-
-    saveHistory();
     render();
 
     const age = formatAge(lastSnapshot);
-
     const ageMinutes = lastSnapshot
-      ? (Date.now() - new Date(lastSnapshot).getTime()) / 60000
+      ? (Date.now() - Date.parse(lastSnapshot)) / 60000
       : Infinity;
 
-    if (ageMinutes >= 60) {
+    if (ageMinutes >= 30) {
       updateRefreshStatus(
-        `⚠️ Παλιά δεδομένα: ${age}. ` +
-        `Τελευταία ενημέρωση: ${lastUpdated}. ` +
-        `Η ανανέωση δεν έφερε νεότερες αποδόσεις.`
+        `⚠️ Τα δεδομένα είναι παλιά (${age}). ` +
+        `Τελευταία ενημέρωση: ${lastUpdated}.`
       );
     } else {
       updateRefreshStatus(
-        `✓ Ο έλεγχος ολοκληρώθηκε. ` +
-        `Ώρα δεδομένων: ${lastUpdated}. ` +
-        `Ηλικία: ${age}. ` +
-        (isCached
-          ? "Απάντηση από προσωρινή μνήμη."
-          : "Απάντηση από τον πάροχο.")
+        `✓ Τελευταίος αυτόματος έλεγχος: ${lastUpdated}. ` +
+        `Ηλικία δεδομένων: ${age}. ` +
+        `Η ανανέωση δεν καταναλώνει API-Football requests.`
       );
     }
 
@@ -413,7 +311,7 @@ async function loadLiveGames() {
 
     updateRefreshStatus(
       "❌ Αποτυχία ανανέωσης. " +
-      "Οι προηγούμενοι αγώνες παραμένουν στην οθόνη."
+      "Τα προηγούμενα δεδομένα παραμένουν στην οθόνη."
     );
 
   } finally {
@@ -421,26 +319,25 @@ async function loadLiveGames() {
 
     if (refreshBtn) {
       refreshBtn.disabled = false;
-      refreshBtn.textContent =
-        "↻ Ανανέωση αποδόσεων";
+      refreshBtn.textContent = "↻ Ανανέωση αποδόσεων";
     }
   }
 }
 
-$("threshold").addEventListener(
-  "input",
-  event => {
+const thresholdInput = $("threshold");
+
+if (thresholdInput) {
+  thresholdInput.addEventListener("input", event => {
     threshold = Number(event.target.value);
-
     $("thresholdValue").textContent = threshold;
-
     render();
-  }
-);
+  });
+}
 
-$("notifyBtn").addEventListener(
-  "click",
-  async () => {
+const notifyBtn = $("notifyBtn");
+
+if (notifyBtn) {
+  notifyBtn.addEventListener("click", async () => {
     if (!("Notification" in window)) {
       alert(
         "Οι ειδοποιήσεις δεν υποστηρίζονται " +
@@ -461,16 +358,13 @@ $("notifyBtn").addEventListener(
     } catch {
       alert("Δεν ήταν δυνατή η ενεργοποίηση.");
     }
-  }
-);
+  });
+}
 
 const refreshBtn = $("refreshBtn");
 
 if (refreshBtn) {
-  refreshBtn.addEventListener(
-    "click",
-    loadLiveGames
-  );
+  refreshBtn.addEventListener("click", loadLiveGames);
 }
 
 if ("serviceWorker" in navigator) {
